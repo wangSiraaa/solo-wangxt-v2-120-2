@@ -56,7 +56,7 @@
 
     <main class="main">
       <LocationPanel
-        :models="models" :runs="runs" :selected-run="selectedRun"
+        :models="models" :stations="scenarioStations" :runs="runs" :selected-run="selectedRun"
         :scenario-key="scenarioKey" :current-pick-version="pickVersion"
         @located="onLocated" @select="selectedRun=$event"
         @refresh-runs="loadRuns" />

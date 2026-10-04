@@ -3,16 +3,17 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..core.comparison import compare_runs
 from ..core.config import APP_VERSION, DATA_VERSION, PICK_SCHEMA_VERSION
 from ..core.location import Arrival, locate
 from ..core.velocity import get_model
 from ..database import get_db
 from ..models.tables import LocationRun, Pick, Scenario
-from ..schemas.dto import LocateRequest, RunDetail, RunSummary
+from ..schemas.dto import LocateRequest, RunComparison, RunDetail, RunSummary
 from .waveforms import picks_version
 
 router = APIRouter(prefix="/api/scenarios", tags=["location"])
@@ -104,6 +105,41 @@ def list_runs(key: str, db: Session = Depends(get_db)):
         select(LocationRun).where(LocationRun.scenario_id == sc.id)
         .order_by(LocationRun.id.desc())).all()
     return [_summary(r) for r in rows]
+
+
+@router.get("/runs/compare", response_model=RunComparison)
+def compare_two_runs(
+    a: int = Query(..., description="候选解 A 的 run id"),
+    b: int = Query(..., description="候选解 B 的 run id"),
+    db: Session = Depends(get_db),
+):
+    """候选解对照（只读历史记录，**不按当前拾取重算**）。
+
+    仅允许同一案例、同一震相的两个已保存结果互相对照；P 与 S、不同案例
+    属于不同反演问题，一律 400 拒绝。不可定位的结果保留原因，坐标类差值
+    返回 null（不可比较），逐台站到时/残差/排除情况仍可对照。
+    """
+    if a == b:
+        raise HTTPException(400, "请选择两个不同的候选解进行对照（A、B 不能相同）。")
+    run_a = db.get(LocationRun, a)
+    run_b = db.get(LocationRun, b)
+    if run_a is None:
+        raise HTTPException(404, f"候选解 #{a} 不存在")
+    if run_b is None:
+        raise HTTPException(404, f"候选解 #{b} 不存在")
+    if run_a.scenario_id != run_b.scenario_id:
+        raise HTTPException(
+            400,
+            f"两个候选解不属于同一案例（#{a} 属案例 {run_a.scenario_id}，"
+            f"#{b} 属案例 {run_b.scenario_id}），不能混为一次对照。",
+        )
+    if run_a.phase != run_b.phase:
+        raise HTTPException(
+            400,
+            f"震相不同：候选 #{a} 为 {run_a.phase} 波，候选 #{b} 为 {run_b.phase} 波。"
+            "P、S 波速度与走时方程不同，严禁混为一次对照。",
+        )
+    return compare_runs(run_a, run_b)
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)

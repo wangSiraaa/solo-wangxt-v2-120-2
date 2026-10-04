@@ -32,6 +32,7 @@ export const api = {
   runs: (key) => req(`/scenarios/${key}/runs`),
   run: (id) => req(`/scenarios/runs/${id}`),
   deleteRun: (id) => req(`/scenarios/runs/${id}`, { method: 'DELETE' }),
+  compareRuns: (a, b) => req(`/scenarios/runs/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
 }
 
 export function fmtEpoch(epoch, digits = 2) {

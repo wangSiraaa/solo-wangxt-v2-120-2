@@ -18,6 +18,7 @@ SciPy 做 Geiger 最小二乘拟合，PostgreSQL/PostGIS（开发时可回退 SQ
 | 缺测/错误拾取要显示残差 | 逐台站残差表（观测−理论）、\|残差\|>0.6s 红色「可疑」标记；缺测台站标注并剔除 |
 | 不能仅报一个精确坐标 | 每个解带 1σ 水平误差椭圆、深度/发震时刻误差、RMS、雅可比秩、逐站残差、诊断警告 |
 | 比较候选解与几何覆盖 | 候选解列表 + 地图叠加对比；方位空隙角 gap、水平方向矩阵特征值比（共线诊断） |
+| **候选解对照** | 同案例、同震相的两个已保存结果可做只读对照：水平距离（含 E/N 分量与方位）、深度/发震时刻/RMS/最大残差差、逐台站残差变化、排除台站与拾取版本并列；前端并列显示模型、拾取版本、排除台站与地图位置。**只读历史快照、不按当前拾取重算**；不可定位的一边保留原因，坐标差显示「不可比较」；P 与 S、不同案例在前后端双重拦截，不能混为一次对照 |
 | 台站不足报告不可定位 | 4 个未知量（经度/纬度/深度/发震时刻）需 ≥4 个同震相到时，sparse 案例（3 台）直接返回 `locatable=false` 与原因 |
 | 已知源位置的合成波形 | ObsPy 生成 Ricker 子波 + 噪声的 BHZ MiniSEED，真值经纬度/深度/发震时刻入库 |
 | 离群到时案例 | outlier：S04 的 P 自动拾取人为 +2.5s，S06 的 S 缺测 |
@@ -74,6 +75,7 @@ DELETE /api/scenarios/picks/{id}/manual         # 撤销修订
 GET  /api/scenarios/{key}/waveforms/{station}   # ObsPy 读 MiniSEED，降采样返回
 POST /api/scenarios/locate                      # 单震相定位，保存候选解（含快照/版本）
 GET  /api/scenarios/{key}/runs  /api/scenarios/runs/{id}
+GET  /api/scenarios/runs/compare?a=&b=          # 候选解对照（只读历史；限同案例同震相）
 DELETE /api/scenarios/runs/{id}
 ```
 
@@ -94,9 +96,10 @@ Geiger 线性化最小二乘（`scipy.optimize.least_squares`，trf，多初始�
 backend/app/core/velocity.py   # 速度模型（版本化、假设显式化）
 backend/app/core/geo.py        # 投影、空隙角、共线/特征值诊断
 backend/app/core/location.py   # Geiger 定位、残差、SVD 协方差
+backend/app/core/comparison.py # 候选解对照：距离/深度/时刻/RMS 差与逐台站残差变化（只读历史）
 backend/app/data.py            # 合成波形与四个教学案例（固定随机种子）
 backend/app/api/               # catalog / waveforms / location 路由
 db/postgis.sql                 # PostGIS 几何列、索引、示例视图
-frontend/src/components/       # WaveformViewer / PickTable / GeometryMap / LocationPanel
+frontend/src/components/       # WaveformViewer / PickTable / GeometryMap / LocationPanel / ComparePanel
 docker-compose.yml             # 一体化 PostGIS 部署
 ```

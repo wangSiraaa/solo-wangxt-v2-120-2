@@ -37,16 +37,21 @@
     </div>
 
     <div style="margin-top:10px">
-      <h3>候选解（点击选中并在地图/残差中比较）</h3>
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">候选解（点击选中并在地图/残差中比较）</h3>
+        <span class="muted">同震相的两个解可做「候选解对照」：
+          <span class="cmp-a-text">A</span> / <span class="cmp-b-text">B</span>
+        </span>
+      </div>
       <table>
         <thead>
           <tr>
             <th>#</th><th>标签</th><th>震相</th><th>状态</th>
-            <th>经度</th><th>纬度</th><th>深度km</th><th>RMS(s)</th><th>最大残差(s)</th><th></th>
+            <th>经度</th><th>纬度</th><th>深度km</th><th>RMS(s)</th><th>最大残差(s)</th><th>对照</th><th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!runs.length"><td colspan="10" class="muted">尚无候选解，点上方按钮运行。</td></tr>
+          <tr v-if="!runs.length"><td colspan="11" class="muted">尚无候选解，点上方按钮运行。</td></tr>
           <tr v-for="r in runs" :key="r.id" class="run-pick"
               :class="{active: selectedRun?.id===r.id}" @click="$emit('select',r)">
             <td>{{ r.id }}
@@ -65,13 +70,42 @@
             <td :class="rmsClass(r.rms_s)">{{ r.rms_s?.toFixed(3) ?? '—' }}</td>
             <td :class="rmsClass(r.max_abs_residual_s)">{{ r.max_abs_residual_s?.toFixed(2) ?? '—' }}</td>
             <td @click.stop>
+              <button class="sm cmp-btn-a" :class="{on: compareAId===r.id}"
+                      :title="compareAId===r.id ? '取消选为候选 A' : '选为候选 A（修订后/新解）'"
+                      @click="pickCompare('a', r)">A</button>
+              <button class="sm cmp-btn-b" :class="{on: compareBId===r.id}"
+                      :title="compareBId===r.id ? '取消选为候选 B' :
+                        (canCompareWith(r, compareAId) ? '选为候选 B（基准/旧解）'
+                         : '震相不同：P 与 S 不能混为一次对照')"
+                      :disabled="!canCompareWith(r, compareAId)"
+                      @click="pickCompare('b', r)">B</button>
+            </td>
+            <td @click.stop>
               <button class="sm danger" @click="remove(r.id)">删</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <div class="row" style="margin-top:6px">
+        <span class="muted">当前对照选择：</span>
+        <span :class="compareAId ? 'cmp-a-text' : 'muted'">
+          A = {{ compareAId ? '#' + compareAId : '未选' }}
+        </span>
+        <span :class="compareBId ? 'cmp-b-text' : 'muted'">
+          B = {{ compareBId ? '#' + compareBId : '未选' }}
+        </span>
+        <button class="primary sm" :disabled="!(compareAId && compareBId) || compareBusy"
+                @click="loadComparison">
+          {{ compareBusy ? '计算中…' : '生成对照' }}
+        </button>
+        <button v-if="compareAId || compareBId" class="sm" @click="clearComparisonPick">清除选择</button>
+        <span v-if="compareError" class="res-pos" style="font-size:11.5px">{{ compareError }}</span>
+      </div>
     </div>
   </div>
+
+  <ComparePanel v-if="comparison" :cmp="comparison" :stations="stations" :models="models"
+                @close="comparison=null" />
 
   <div v-if="run" class="card">
     <h2>候选解 #{{ run.id }} 详情：不止一个坐标</h2>
@@ -187,11 +221,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { api, fmtEpoch } from '../lib/api.js'
+import ComparePanel from './ComparePanel.vue'
 
 const props = defineProps({
   models: { type: Array, default: () => [] },
+  stations: { type: Array, default: () => [] },
   runs: { type: Array, default: () => [] },
   selectedRun: Object,
   scenarioKey: String,
@@ -205,8 +241,85 @@ const robust = ref(false)
 const busy = ref(false)
 const error = ref('')
 
+// —— 候选解对照状态 ——
+const compareAId = ref(null)
+const compareBId = ref(null)
+const comparison = ref(null)
+const compareBusy = ref(false)
+const compareError = ref('')
+
 const run = computed(() => props.selectedRun)
 const selectedModel = computed(() => props.models.find(m => m.model_id === modelId.value))
+
+function runById(id) {
+  return props.runs.find(r => r.id === id) || null
+}
+
+// 前端只允许选择同震相候选作为对照（后端还会再次校验同案例+同震相）
+function canCompareWith(r, otherId) {
+  if (!otherId) return true
+  const other = runById(otherId)
+  return !!other && other.phase === r.phase
+}
+
+function pickCompare(side, r) {
+  compareError.value = ''
+  comparison.value = null
+  const myId = side === 'a' ? compareAId : compareBId
+  const otherId = side === 'a' ? compareBId : compareAId
+  // 再点一次 = 取消
+  if (myId.value === r.id) {
+    myId.value = null
+    return
+  }
+  const other = runById(otherId.value)
+  if (other && other.phase !== r.phase) {
+    compareError.value = `${r.phase} 波解不能与 ${other.phase} 波解对照（P/S 严禁混用）`
+    return
+  }
+  myId.value = r.id
+}
+
+function clearComparisonPick() {
+  compareAId.value = null
+  compareBId.value = null
+  comparison.value = null
+  compareError.value = ''
+}
+
+async function loadComparison() {
+  if (!compareAId.value || !compareBId.value) return
+  if (compareAId.value === compareBId.value) {
+    compareError.value = '请选择两个不同的候选解'
+    return
+  }
+  compareBusy.value = true
+  compareError.value = ''
+  try {
+    comparison.value = await api.compareRuns(compareAId.value, compareBId.value)
+  } catch (e) {
+    comparison.value = null
+    compareError.value = String(e.message || e)
+  } finally {
+    compareBusy.value = false
+  }
+}
+
+// 切换案例或候选被删除后，清理失效的对照选择
+watch(() => props.scenarioKey, () => {
+  compareAId.value = null
+  compareBId.value = null
+  comparison.value = null
+  compareError.value = ''
+})
+watch(() => props.runs, (list) => {
+  const ids = new Set(list.map(r => r.id))
+  if (compareAId.value && !ids.has(compareAId.value)) compareAId.value = null
+  if (compareBId.value && !ids.has(compareBId.value)) compareBId.value = null
+  if (comparison.value && (!ids.has(comparison.value.run_a.id) || !ids.has(comparison.value.run_b.id))) {
+    comparison.value = null
+  }
+})
 
 async function doLocate() {
   busy.value = true

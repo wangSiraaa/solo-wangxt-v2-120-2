@@ -146,5 +146,14 @@ tr.missing td { color: var(--muted); }
 .kv dd { margin: 0; text-align: right; }
 .run-pick { cursor: pointer; }
 .run-pick.active td { background: #17304a; }
+
+/* 候选解对照 */
+.cmp-a-text { color: #79b8ff; font-weight: 650; }
+.cmp-b-text { color: #e3b341; font-weight: 650; }
+button.cmp-btn-a { color: #79b8ff; border-color: #2b4a6b; padding: 2px 8px; }
+button.cmp-btn-a.on { background: #1f4e7a; border-color: #58a6ff; color: #fff; }
+button.cmp-btn-b { color: #e3b341; border-color: #6b5520; padding: 2px 8px; }
+button.cmp-btn-b.on { background: #6b521a; border-color: #d29922; color: #fff; }
+button.cmp-btn-a:disabled, button.cmp-btn-b:disabled { opacity: .3; }
 .scroll { max-height: 340px; overflow-y: auto; }
 .footer-note { color: var(--muted); font-size: 11px; padding: 8px 16px; border-top: 1px solid var(--border); }
