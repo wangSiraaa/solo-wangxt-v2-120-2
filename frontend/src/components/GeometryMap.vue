@@ -4,13 +4,30 @@
       <h2>台网几何与候选解对比</h2>
       <div class="muted">
         <span class="tag good">绿★ 真值</span>
-        <span class="tag" :class="selectedRun ? 'warn' : ''">橙◆ 所选候选</span>
+        <template v-if="comparePair">
+          <span class="tag a">◆ 对照 A #{{ comparePair.a.id }}</span>
+          <span class="tag b">◆ 对照 B #{{ comparePair.b.id }}</span>
+        </template>
+        <template v-else>
+          <span class="tag" :class="selectedRun ? 'warn' : ''">橙◆ 所选候选</span>
+        </template>
         <span class="tag raw">灰◇ 其他候选</span>
         <span class="tag P">▼ 台站</span>
       </div>
     </div>
     <div ref="mapEl" style="height: 420px"></div>
-    <div v-if="selectedRun?.geometry" class="grid2" style="margin-top:6px">
+    <div v-if="comparePair" class="warnbox" style="margin-top:6px">
+      <template v-if="comparePair.a.locatable && comparePair.b.locatable">
+        对照 A(#{{ comparePair.a.id }}) 与 B(#{{ comparePair.b.id }}) 的连线即水平位置差，
+        距离见「候选解对照」面板；两侧 1σ 误差椭圆以橙/紫描边。
+      </template>
+      <template v-else>
+        <template v-if="!comparePair.a.locatable">对照 A(#{{ comparePair.a.id }}) 不可定位，地图上无坐标；</template>
+        <template v-if="!comparePair.b.locatable">对照 B(#{{ comparePair.b.id }}) 不可定位，地图上无坐标。</template>
+        水平位置差不可比较。
+      </template>
+    </div>
+    <div v-else-if="selectedRun?.geometry" class="grid2" style="margin-top:6px">
       <dl class="kv">
         <dt>台站数</dt><dd>{{ selectedRun.geometry.n_stations }}</dd>
         <dt>最大方位空隙角</dt>
@@ -44,12 +61,13 @@ const props = defineProps({
   scenario: Object,
   runs: { type: Array, default: () => [] },
   selectedRun: Object,
+  comparePair: Object,
 })
 const mapEl = ref(null)
 const gapText = { good: '包围良好', one_sided: '单侧覆盖', poor: '严重单侧' }
 
 onMounted(redraw)
-watch(() => [props.stations, props.runs, props.selectedRun], redraw, { deep: true })
+watch(() => [props.stations, props.runs, props.selectedRun, props.comparePair], redraw, { deep: true })
 
 function ellipseLonLat(run) {
   const u = run.uncertainty
@@ -96,7 +114,11 @@ function redraw() {
   }
 
   // 候选解（其他）
-  const others = props.runs.filter(r => r.locatable && r !== props.selectedRun)
+  const compareIds = props.comparePair
+    ? new Set([props.comparePair.a?.id, props.comparePair.b?.id])
+    : new Set()
+  const others = props.runs.filter(r =>
+    r.locatable && r !== props.selectedRun && !compareIds.has(r.id))
   if (others.length) {
     traces.push({
       x: others.map(r => r.lon), y: others.map(r => r.lat),
@@ -117,8 +139,41 @@ function redraw() {
     })
   }
 
-  // 所选候选 + 椭圆
-  if (props.selectedRun?.locatable) {
+  // —— 候选解对照：A 橙、B 紫，连线表示水平位置差 ——
+  if (props.comparePair) {
+    const { a, b } = props.comparePair
+    const cStyle = [
+      [a, '#e3b341', 'rgba(210,153,34,.14)', `对照 A #${a.id}`],
+      [b, '#a371f7', 'rgba(137,87,229,.16)', `对照 B #${b.id}`],
+    ]
+    for (const [r, color, fill, name] of cStyle) {
+      if (!r.locatable) continue
+      const e = ellipseLonLat(r)
+      if (e) traces.push({
+        x: e.lon, y: e.lat, type: 'scatter', mode: 'lines',
+        line: { color, width: 2 }, fill: 'toself', fillcolor: fill,
+        name: `${name} 1σ 椭圆`, hoverinfo: 'skip',
+      })
+      traces.push({
+        x: [r.lon], y: [r.lat],
+        type: 'scatter', mode: 'markers+text',
+        marker: { symbol: 'diamond', size: 14, color,
+                  line: { color: '#0d1117', width: 1 } },
+        text: [name.replace('对照 ', '')],
+        textposition: 'top center', textfont: { size: 11, color },
+        name, hovertemplate: `${name} ${r.label}<br>(%{x:.4f}, %{y:.4f})<extra></extra>`,
+      })
+    }
+    if (a.locatable && b.locatable) {
+      traces.push({
+        x: [a.lon, b.lon], y: [a.lat, b.lat],
+        type: 'scatter', mode: 'lines',
+        line: { color: '#c9d4e0', width: 1.5, dash: 'dash' },
+        name: '水平位置差', hoverinfo: 'skip', showlegend: false,
+      })
+    }
+  } else if (props.selectedRun?.locatable) {
+    // 所选候选 + 椭圆
     const r = props.selectedRun
     const e = ellipseLonLat(r)
     if (e) traces.push({

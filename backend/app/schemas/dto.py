@@ -111,6 +111,67 @@ class RunDetail(RunSummary):
     excludes: List[int]
 
 
+class CompareRequest(BaseModel):
+    run_a_id: int = Field(description="基准候选解（A）的 run id")
+    run_b_id: int = Field(description="对照候选解（B）的 run id；所有差值均为 B − A")
+
+
+class CompareSide(BaseModel):
+    """对照中一侧的只读历史信息（全部取自保存的 run 记录，不按当前拾取重算）。"""
+    id: int
+    label: str
+    phase: str
+    model_id: str
+    robust: bool
+    locatable: bool
+    status: str
+    reason: Optional[str]
+    lon: Optional[float]
+    lat: Optional[float]
+    depth_km: Optional[float]
+    origin_time_epoch: Optional[float]
+    rms_s: Optional[float]
+    n_used: int
+    pick_data_version: str
+    excludes: List[int]
+    excluded_station_codes: List[str]
+    uncertainty: Optional[dict]
+    created_at: datetime
+
+
+class StationResidualChange(BaseModel):
+    station_code: str
+    # 两侧该台站的参与情况：located = 参与了该次反演并保存了残差；
+    # excluded = 用户排除；missing = 无有效到时；not_locatable = 该次整体不可定位
+    status_a: Optional[str]
+    status_b: Optional[str]
+    residual_a_s: Optional[float]
+    residual_b_s: Optional[float]
+    residual_delta_s: Optional[float]      # B − A
+    observed_delta_s: Optional[float]      # 保存的观测到时差 B − A（如人工修订）
+    used_a: bool
+    used_b: bool
+
+
+class RunComparison(BaseModel):
+    comparable: bool                        # False = 案例/震相不允许组成一次对照
+    notes: List[str]                        # 人类可读的限制与提示
+    model_differs: bool
+    pick_version_differs: bool
+    robust_differs: bool
+    scenario_key: str
+    scenario_title: str
+    phase: str
+    side_a: CompareSide
+    side_b: CompareSide
+    # 以下差值均为 B − A；任一侧不可定位时为 null（前端显示「不可比较」）
+    horizontal_distance_km: Optional[float]
+    depth_delta_km: Optional[float]
+    origin_time_delta_s: Optional[float]
+    rms_delta_s: Optional[float]
+    station_changes: List[StationResidualChange]
+
+
 class WaveformOut(BaseModel):
     station_code: str
     channel: str

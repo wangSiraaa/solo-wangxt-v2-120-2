@@ -26,6 +26,15 @@ def unproject_km(x: float, y: float, lon0: float, lat0: float) -> Tuple[float, f
     return lon, lat
 
 
+def haversine_km(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+    """大圆距离（km）。候选解对照用它量化两个水平位置差多远。"""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R_EARTH_KM * math.asin(math.sqrt(a))
+
+
 def azimuthal_gap(azimuths: Sequence[float]) -> float:
     """最大空隙角（度）：相邻台站方位角之差的最大值。
 

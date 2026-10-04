@@ -122,6 +122,8 @@ tr.missing td { color: var(--muted); }
 .tag.bad { color: #fff; background: var(--bad); border-color: var(--bad); }
 .tag.warn { color: #1a1a1a; background: var(--warn); border-color: var(--warn); }
 .tag.good { color: #1a1a1a; background: var(--good); border-color: var(--good); }
+.tag.a { color: #1a1a1a; background: var(--warn); border-color: var(--warn); }
+.tag.b { color: #fff; background: #8957e5; border-color: #8957e5; }
 
 .res-pos { color: var(--bad); font-weight: 650; }
 .res-neg { color: #ffa657; font-weight: 650; }

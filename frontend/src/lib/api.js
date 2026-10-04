@@ -32,6 +32,9 @@ export const api = {
   runs: (key) => req(`/scenarios/${key}/runs`),
   run: (id) => req(`/scenarios/runs/${id}`),
   deleteRun: (id) => req(`/scenarios/runs/${id}`, { method: 'DELETE' }),
+  compareRuns: (runAId, runBId) => req('/scenarios/runs/compare', {
+    method: 'POST', body: JSON.stringify({ run_a_id: runAId, run_b_id: runBId }),
+  }),
 }
 
 export function fmtEpoch(epoch, digits = 2) {

@@ -61,9 +61,12 @@
         @located="onLocated" @select="selectedRun=$event"
         @refresh-runs="loadRuns" />
 
+      <RunCompare :runs="runs" :scenario-key="scenarioKey" @pair="comparePair=$event" />
+
       <div class="grid2">
         <GeometryMap :stations="scenarioStations" :scenario="scenario"
-                     :runs="runs" :selected-run="selectedRun" />
+                     :runs="runs" :selected-run="selectedRun"
+                     :compare-pair="comparePair" />
         <WaveformViewer :key="'wf-'+scenarioKey" :scenario-key="scenarioKey"
                         :station-codes="scenarioStations.map(s=>s.code)"
                         :picks="picks" @revised="loadPicks" />
@@ -86,6 +89,7 @@ import GeometryMap from './components/GeometryMap.vue'
 import WaveformViewer from './components/WaveformViewer.vue'
 import PickTable from './components/PickTable.vue'
 import LocationPanel from './components/LocationPanel.vue'
+import RunCompare from './components/RunCompare.vue'
 import { DATA_VERSION_CONST } from './lib/versions.js'
 
 const health = ref(null)
@@ -95,6 +99,7 @@ const scenarioKey = ref('nominal')
 const picks = ref([])
 const runs = ref([])
 const selectedRun = ref(null)
+const comparePair = ref(null)
 const pickVersionInfo = ref({ pick_data_version: '', n_picks: 0, n_manual: 0, n_missing: 0 })
 
 const dataVersion = DATA_VERSION_CONST
@@ -122,6 +127,7 @@ watch(scenarioKey, loadScenario, { immediate: true })
 
 async function loadScenario() {
   selectedRun.value = null
+  comparePair.value = null
   await Promise.all([loadPicks(), loadRuns()])
 }
 
